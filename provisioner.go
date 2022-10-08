@@ -72,9 +72,10 @@ type NodePathMapData struct {
 }
 
 type ConfigData struct {
-	NodePathMap []*NodePathMapData `json:"nodePathMap,omitempty"`
-	CmdTimeoutSeconds int `json:"cmdTimeoutSeconds,omitempty"`
+	NodePathMap          []*NodePathMapData `json:"nodePathMap,omitempty"`
+	CmdTimeoutSeconds    int                `json:"cmdTimeoutSeconds,omitempty"`
 	SharedFileSystemPath string             `json:"sharedFileSystemPath,omitempty"`
+	StaticPVPath         bool               `json:"staticPVPath,omitempty"`
 }
 
 type NodePathMap struct {
@@ -82,9 +83,10 @@ type NodePathMap struct {
 }
 
 type Config struct {
-	NodePathMap       map[string]*NodePathMap
-	CmdTimeoutSeconds int
+	NodePathMap          map[string]*NodePathMap
+	CmdTimeoutSeconds    int
 	SharedFileSystemPath string
+	StaticPVPath         bool
 }
 
 func NewProvisioner(stopCh chan struct{}, kubeClient *clientset.Clientset,
@@ -256,7 +258,11 @@ func (p *LocalPathProvisioner) Provision(opts pvController.ProvisionOptions) (*v
 	}
 
 	name := opts.PVName
-	folderName := strings.Join([]string{name, opts.PVC.Namespace, opts.PVC.Name}, "_")
+	folderName := strings.Join([]string{opts.PVC.Namespace, opts.PVC.Name}, "_")
+	if !p.config.StaticPVPath {
+		// optionally use static folder path for a specific PVC
+		folderName = strings.Join([]string{name, folderName}, "_")
+	}
 
 	path := filepath.Join(basePath, folderName)
 	if nodeName == "" {
@@ -336,7 +342,7 @@ func (p *LocalPathProvisioner) Provision(opts pvController.ProvisionOptions) (*v
 				v1.ResourceName(v1.ResourceStorage): pvc.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)],
 			},
 			PersistentVolumeSource: pvs,
-			NodeAffinity: nodeAffinity,
+			NodeAffinity:           nodeAffinity,
 		},
 	}, nil
 }
@@ -647,5 +653,6 @@ func canonicalizeConfig(data *ConfigData) (cfg *Config, err error) {
 	} else {
 		cfg.CmdTimeoutSeconds = defaultCmdTimeoutSeconds
 	}
+	cfg.StaticPVPath = data.StaticPVPath
 	return cfg, nil
 }

@@ -1,0 +1,10 @@
+FROM golang:buster as builder
+WORKDIR /code
+COPY . .
+RUN go mod tidy \
+   && go build -ldflags "-extldflags -static -s -w" -o  bin/local-path-provisioner 
+
+
+FROM alpine
+COPY --from=builder /code/bin/local-path-provisioner /usr/bin/
+CMD ["local-path-provisioner"]
